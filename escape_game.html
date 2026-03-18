@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transport sous tension</title>
+<style>
+  :root{
+    --text:#f2f4f8;
+    --muted:#b7bfca;
+    --accent:#8fd3ff;
+    --accent-soft:rgba(143,211,255,.14);
+    --ok:#8ef0a8;
+    --bad:#ff8c8c;
+    --warn:#ffd27a;
+    --border:rgba(255,255,255,.10);
+  }
+
+  *{box-sizing:border-box}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    font-family:Arial, Helvetica, sans-serif;
+    color:var(--text);
+    background-image:
+      linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.75)),
+      url("https://raw.githubusercontent.com/jm84130/escape-game/main/enigma.jpg");
+    background-size:cover;
+    background-repeat:no-repeat;
+    background-position:center 95%;
+    background-attachment:fixed;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    background:
+      linear-gradient(to bottom, rgba(255,255,255,.02), rgba(255,255,255,0) 14%),
+      radial-gradient(circle at center, transparent 55%, rgba(0,0,0,.18) 100%);
+  }
+
+  #timerBox{
+    position:fixed;
+    top:12px;
+    right:12px;
+    background:rgba(0,0,0,0.72);
+    border:1px solid rgba(255,0,0,0.75);
+    color:#ff3b3b;
+    font-weight:bold;
+    font-size:16px;
+    padding:6px 10px;
+    border-radius:6px;
+    z-index:999;
+    box-shadow:0 0 12px rgba(255,0,0,.20);
+  }
+
+  #timerBox.urgent{
+    animation:blinkRed .9s infinite;
+  }
+
+  @keyframes blinkRed{
+    0%, 50%, 100%{
+      opacity:1;
+      transform:scale(1);
+      box-shadow:0 0 12px rgba(255,0,0,.20);
+    }
+    25%, 75%{
+      opacity:.35;
+      transform:scale(1.05);
+      box-shadow:0 0 22px rgba(255,0,0,.45);
+    }
+  }
+
+  #game{
+    width:min(980px, 100%);
+    background:rgba(12,14,19,0.62);
+    border:none;
+    border-radius:18px;
+    overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.45);
+    backdrop-filter:blur(3px);
+  }
+
+  .content{
+    padding:24px;
+  }
+
+  .card{
+    background:transparent;
+    border:none;
+    border-radius:0;
+    padding:22px;
+  }
+
+  .hidden{display:none}
+
+  h1,h2,h3{
+    margin-top:0;
+    margin-bottom:16px;
+  }
+
+  .passage{
+    font-size:1.05rem;
+    line-height:1.65;
+    text-align:justify;
+  }
+
+  .passage ul{
+    margin:10px 0 14px 20px;
+  }
+
+  .passage img{
+    max-width:100%;
+    height:auto;
+    display:block;
+    margin:20px auto;
+    border-radius:12px;
+    border:none;
+  }
+
+  input{
+    width:100%;
+    padding:14px 16px;
+    margin-top:12px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.18);
+    background:rgba(0,0,0,.35);
+    color:var(--text);
+    font-size:16px;
+    outline:none;
+  }
+
+  input:focus{
+    border-color:var(--accent);
+    box-shadow:0 0 0 4px var(--accent-soft);
+  }
+
+  .actions{
+    display:flex;
+    gap:12px;
+    flex-wrap:wrap;
+    margin-top:14px;
+  }
+
+  button{
+    border:none;
+    border-radius:12px;
+    padding:12px 18px;
+    background:linear-gradient(180deg, #273246, #1d2635);
+    color:var(--text);
+    font-weight:700;
+    font-size:15px;
+    cursor:pointer;
+    border:1px solid rgba(255,255,255,.12);
+  }
+
+  button:hover{
+    filter:brightness(1.08);
+  }
+
+  #feedback{
+    min-height:28px;
+    margin-top:14px;
+    font-weight:700;
+  }
+
+  .success{color:var(--ok)}
+  .error{color:var(--bad)}
+
+  #currentInfo{
+    color:var(--muted);
+    margin-top:10px;
+    font-size:14px;
+  }
+
+  .hint{
+    margin-top:14px;
+    padding:14px;
+    border-radius:12px;
+    background:rgba(255,210,122,.08);
+    border:1px dashed rgba(255,210,122,.45);
+    color:#ffe4a9;
+  }
+
+  .rank{
+    font-size:1.25rem;
+    font-weight:700;
+    color:var(--accent);
+  }
+
+  .endbox{
+    line-height:1.8;
+    font-size:1.05rem;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:10px;
+  }
+
+  th, td{
+    text-align:left;
+    padding:6px;
+    border-bottom:1px solid rgba(255,255,255,.22);
+  }
+</style>
+</head>
+<body>
+
+<div id="timerBox">90:00</div>
+
+<audio id="successSound" preload="auto">
+  <source src="https://raw.githubusercontent.com/jm84130/escape-game/main/victory.mp3" type="audio/mpeg">
+</audio>
+<audio id="errorSound" preload="auto">
+  <source src="https://raw.githubusercontent.com/jm84130/escape-game/main/freesound_community-075176_duck-quack-40345.mp3" type="audio/mpeg">
+</audio>
+<audio id="alarmSound" preload="auto">
+  <source src="https://raw.githubusercontent.com/jm84130/escape-game/main/ALRMSirn_Signal%20national%20alerte%20remalard%2061%20%28ID%203257%29_LaSonotheque.fr.wav" type="audio/wav">
+</audio>
+
+<div id="game">
+  <div class="content">
+    <div id="intro" class="card passage">
+      <div id="introText"></div>
+      <div class="actions">
+        <button onclick="startGame()">Commencer l'enquête</button>
+      </div>
+    </div>
+
+    <div id="puzzle" class="card hidden">
+      <div id="puzzleText" class="passage"></div>
+      <input id="answerInput" placeholder="Votre réponse" autocomplete="off">
+      <div class="actions">
+        <button onclick="checkAnswer()">Valider</button>
+      </div>
+      <div id="feedback"></div>
+      <div id="currentInfo"></div>
+      <div id="hintBox" class="hint hidden"></div>
+    </div>
+
+    <div id="end" class="card hidden endbox">
+      <h2>🎯 Résultat final</h2>
+      <div>Temps restant : <strong id="remaining"></strong></div>
+      <div>Score final : <strong id="finalScore"></strong> / 1000</div>
+      <div>Classement : <span class="rank" id="rank"></span></div>
+      <div style="margin-top:20px">
+        <h3>Détail des scores par énigme</h3>
+        <table id="scoreTable">
+          <thead>
+            <tr>
+              <th>Énigme</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="lost" class="card hidden endbox">
+      <h2>⏱️ Temps écoulé</h2>
+      <div>Le délai de 90 minutes est dépassé.</div>
+      <div>Score final : <strong id="lostScore"></strong> / 1000</div>
+      <div>Classement : <span class="rank" id="lostRank"></span></div>
+      <div style="margin-top:20px">
+        <h3>Détail des scores par énigme</h3>
+        <table id="lostScoreTable">
+          <thead>
+            <tr>
+              <th>Énigme</th>
+              <th>Points</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const POINTS_PAR_ENIGME = 100;
+const ESSAIS_AVANT_INDICE = 5;
+const TOTAL_TIME = 90 * 60;
+
+const introHtml = `
+<div>
+🛑 <b>TRANSPORT SOUS TENSION</b><br><br>
+
+Ce 04 juin, un de nos poids lourds a été <b>intercepté</b> lors d’un contrôle à l’entrée d’une plateforme logistique.<br>
+Le chauffeur affirme avoir tout fait correctement, mais les autorités ont relevé plusieurs <b>anomalies</b> inquiétantes :<br>
+– Marchandises suspectes<br>
+– Documents incomplets ou contradictoires<br>
+– Temps de conduite douteux<br>
+– Itinéraire incohérent
+
+<br><br>
+
+<b>Et le pire ?</b><br>
+Si nous ne prouvons pas la conformité du transport <b>dans les 90 prochaines minutes</b>, la marchandise sera saisie, et l’entreprise lourdement sanctionnée.
+
+<br><br>
+
+🎯 <b>Votre mission</b><br>
+Vous êtes une équipe spéciale chargée de mener l’enquête.<br>
+À chaque étape, vous devrez :
+<ul>
+  <li>Vérifier des documents</li>
+  <li>Observer des éléments réels dans le camion</li>
+  <li>Relever les incohérences</li>
+  <li>Entrer vos réponses dans ce système de contrôle</li>
+</ul>
+
+Chaque énigme résolue vous rapprochera de la vérité.<br>
+À la fin, vous devrez reconstituer un <b>mot de passe final à l'aide des réponses aux énigmes</b> qui validera ou non le transport.
+
+<br><br>
+
+⏱️ <b>Temps imparti :</b> 1h30<br>
+Travail en équipes – Départs décalés – Zones à fouiller limitées
+
+<br><br>
+<b>Bonne chance, enquêteurs du fret.</b>
+</div>`;
+
+const puzzles = [
+  {
+    html: `
+<div>
+📦 <b>Erreur de chargement</b><br><br>
+
+Dans le <b>camion bâché</b>, l’une des palettes présente le même numéro de colis… mais la marchandise est différente !<br>
+Sur cette palette se trouve une <b>référence à 4 lettres et/ou chiffres</b>.
+
+<br><br>
+
+Voici la <b>référence marchandise (CMR)</b> que le chauffeur nous a transmise :<br><br>
+<b>Marchandise référencée :</b> RE2
+
+<br><br>
+
+Votre mission : comparez ces informations à la réalité sur le terrain. Les lettres de voiture sont dans le véhicule.
+
+<br><br>
+
+<b>Indiquez le numéro correct attendu :</b>
+</div>`,
+    hint: "La marchandise référencée est inscrite pas très loin d'un pictogramme.",
+    validate: value => normalizeLoose(value) === "HU99"
+  },
+  {
+    html: `
+<div>
+🚛 <b>ÉNIGME 2 – Pause non respectée ?</b><br><br>
+
+Le chauffeur prétend avoir respecté les temps réglementaires.<br>
+Mais selon un contrôle, il y aurait un dépassement.
+
+<br><br>
+
+🔍 Dans la cabine du véhicule utilisé, un <b>ticket tachygraphe numérique</b> a été retrouvé.<br>
+À vous de le retrouver, de l’analyser, et de calculer le <b>temps total de conduite</b> de la journée, exprimé en minutes.
+</div>`,
+    hint: "Additionnez uniquement les temps de conduite.",
+    validate: value => value.trim() === "301"
+  },
+  {
+    html: `
+<div>
+🚛 <b>ÉNIGME 3 – Mauvais véhicule ?</b><br><br>
+
+Voici les <b>données véhicule</b> transmises par l’exploitation :<br><br>
+<ul>
+   <li>Couleur : Blanc</li>
+   <li>Longueur approximative : 8 m</li>
+   <li>Puissance : 220 ch</li>
+</ul>
+
+🚐 Les données ne sont pas celles du véhicule utilisé.<br>
+Relevez les <b>3 chiffres centraux</b> de la plaque d’immatriculation du véhicule qui aurait dû être utilisé.
+</div>`,
+    hint: "Le véhicule n'est pas forcément très loin.",
+    validate: value => value.trim() === "987"
+  },
+  {
+    html: `
+<div>
+🧩 <b>ÉNIGME 4 – Sangle douteuse</b><br><br>
+
+Un chargement a été sécurisé… mais avec un manque de sécurité !<br>
+Un duo de palettes a été arrimé avec une sangle insuffisante.
+
+<br><br>
+
+📦 Retrouvez ce duo de palettes dans le camion.<br>
+Trouvez le <b>code à 3 lettres</b> inscrit autour ou sur cette <b>sangle insuffisante</b>.
+</div>`,
+    hint: "Vérifiez bien les ensembles de palette et comparez-les aux sangles. Une de ces sangles est problématique.",
+    validate: value => normalizeLoose(value) === "AXD"
+  },
+  {
+    html: `
+<div>
+🧩 <b>ÉNIGME 5 – Itinéraire incohérent</b><br><br>
+
+📍 Voici les 3 itinéraires proposés par l’exploitation :
+
+<ul>
+  <li><b>Trajet A :</b> Salon > Orange > Aubenas > Valence > Lyon</li>
+  <li><b>Trajet B :</b> Salon > Nîmes > Mende > Le Puy-en-Velay > Lyon</li>
+  <li><b>Trajet C :</b> Salon > Avignon > Montélimar > Valence > Lyon</li>
+</ul>
+
+📘 À l’aide d’un <b>atlas routier</b>, analysez ces trajets :
+<ul>
+  <li>Repérez celui qui évite les zones interdites aux poids lourds</li>
+  <li>Repérez celui qui respecte un temps de livraison réaliste</li>
+</ul>
+
+Entrez <b>la lettre du trajet ainsi que sa distance</b> en kilomètres, sans espace (ex. <code>C296</code>).
+</div>`,
+    hint: "Le trajet le plus adapté suit majoritairement les grands axes accessibles aux PL.",
+    validate: value => {
+      const raw = value.trim().toUpperCase();
+      const letter = raw.substring(0,1);
+      const distance = parseInt(raw.substring(1), 10);
+      return letter === "C" && !Number.isNaN(distance) && distance >= 286 && distance <= 306;
+    }
+  },
+  {
+    html: `
+<div>
+☢️ <b>ÉNIGME 6 – Produit dangereux ?</b><br><br>
+
+La palette "de bidons de Pilocarpine nitrate filmée" n’a pas été signalée comme matière dangereuse… mais elle soulève un doute.
+
+<br><br>
+
+📂 Dans le véhicule, un <b>dossier contenant les fiches de sécurité</b> est disponible.<br>
+Recherchez celle qui concerne ce produit et trouvez :
+<ul>
+  <li>Le <b>numéro ONU</b> du produit</li>
+  <li>Sa <b>classe de tunnel</b> (ex : A, B, C, D, E)</li>
+</ul>
+
+Entrez les deux informations, séparées par un espace.<br>
+(ex : <code>1203 B</code>)
+</div>`,
+    hint: "Le numéro ONU est un code à 4 chiffres. La classe de tunnel est indiquée dans un paragraphe de la fiche sécurité. Peut-être qu'il y a 2 lettres à renseigner.",
+    validate: value => normalizeAdr(value) === "2811C/E"
+  },
+  {
+    html: `
+<div>
+📦 <b>ÉNIGME 7 – Le plan foireux</b><br><br>
+
+Voici le <b>plan de chargement théorique</b> fourni par l’exploitation.<br>
+Il décrit la position exacte de chaque palette dans la remorque.
+<img src="https://dl.dropboxusercontent.com/scl/fi/lt74ql72w5o3lzd5itwnt/plan-2.PNG?rlkey=es24d2q1hei5vzqnioq92xbvx&st=oepcpd9c" alt="Plan de chargement">
+
+🚛 <b>Mais sur le terrain...</b> toutes les palettes ont été inversées.
+
+<br><br>
+
+📷 Comparez le plan à la réalité dans le camion.<br>
+Sur chaque palette se trouve un code à 3 chiffres ou lettres.<br>
+Trouvez celle qui aurait dû être <b>contre le tablier à gauche</b>, mais qui ne l’est pas.
+</div>`,
+    hint: "Le code est visible sur un flanc de la palette.",
+    validate: value => normalizeLoose(value) === "ZR8"
+  },
+  {
+    html: `
+<div>
+⚖️ <b>ÉNIGME 8 – Trop lourd ou non ?</b><br><br>
+
+Calculez la <b>charge utile restante</b> (en kg), et entrez-la ci-dessous.
+</div>`,
+    hint: "Formule de calcul : CU restante = PMA - PV - Pmarchandises",
+    validate: value => value.trim() === "240"
+  },
+  {
+    html: `
+<div>
+🚦 <b>ÉNIGME 9 – Passage impossible ?</b><br><br>
+
+📍 Plusieurs itinéraires sont possibles :
+
+<ul>
+  <li><b>Pont de Saint-Loup</b> : interdit aux véhicules > 12 T</li>
+  <li><b>Tunnel des Vignes</b> : hauteur maximale autorisée 3,10 m</li>
+  <li><b>Tunnel de la Durance</b> : tunnel de catégorie C</li>
+  <li><b>Tunnel de la Garrigue</b> : tunnel de catégorie D</li>
+  <li><b>Pont de la Tournelle</b> : interdit aux matières ADR classe 6.1</li>
+  <li><b>Viaduc de Meyrargues</b> : hauteur maximale 3,10 m, accès PL autorisé</li>
+</ul>
+
+Quel est le <b>seul itinéraire possible</b> pour ce véhicule ?<br>
+Entrez le <b>nom du passage autorisé</b>.
+</div>`,
+    hint: "La classe ADR 3 n'est concernée par aucune restriction listée.",
+    validate: value => normalizePhrase(value) === "tunneldeladurance"
+  },
+  {
+    html: `
+<div>
+🔐 <b>ÉNIGME 10 – Le mot de vérité</b><br><br>
+
+Chaque énigme résolue vous a donné une réponse. Reprenez :
+<ul>
+  <li>Les <b>2 premiers chiffres</b> ou <b>les 2 premières lettres</b> de chaque réponse</li>
+  <li>(ex : 1234 → 12 / FRD → FR / 1866 D/E → 1 et D)</li>
+</ul>
+
+🧩 À l’aide de votre <b>grille de cryptocode</b>, déduisez le mot final (9 lettres).
+
+<br><br>
+
+Entrez le mot final ici (en majuscules) :
+</div>`,
+    hint: "Le premier caractère est sur la ligne horizontale et le second sur la ligne verticale.",
+    validate: value => normalizeLoose(value) === "VEHICULES"
+  }
+];
+
+let score = 0;
+let scoresPerPuzzle = [];
+let index = 0;
+let timeLeft = TOTAL_TIME;
+let timer = null;
+let attemptsForCurrent = 0;
+let hintShownForCurrent = false;
+let alarmPlayed = false;
+
+const introText = document.getElementById("introText");
+const puzzleText = document.getElementById("puzzleText");
+const feedback = document.getElementById("feedback");
+const hintBox = document.getElementById("hintBox");
+const currentInfo = document.getElementById("currentInfo");
+const answerInput = document.getElementById("answerInput");
+const timerBoxEl = document.getElementById("timerBox");
+const successSound = document.getElementById("successSound");
+const errorSound = document.getElementById("errorSound");
+const alarmSound = document.getElementById("alarmSound");
+
+introText.innerHTML = introHtml;
+
+function normalizeLoose(text){
+  return (text || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function normalizePhrase(text){
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function normalizeAdr(text){
+  return (text || "")
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function playSound(audioEl){
+  try{
+    audioEl.currentTime = 0;
+    audioEl.play().catch(() => {});
+  }catch(e){}
+}
+
+function startGame(){
+  document.getElementById("intro").classList.add("hidden");
+  document.getElementById("puzzle").classList.remove("hidden");
+  showPuzzle();
+  answerInput.focus();
+  if (!timer){
+    timer = setInterval(updateTimer, 1000);
+  }
+}
+
+function showPuzzle(){
+  attemptsForCurrent = 0;
+  hintShownForCurrent = false;
+  puzzleText.innerHTML = puzzles[index].html;
+  answerInput.value = "";
+  feedback.textContent = "";
+  currentInfo.textContent = "";
+  hintBox.textContent = "";
+  hintBox.classList.add("hidden");
+}
+
+function getPointsForCurrentPuzzle(){
+  let loss = 0;
+  if (attemptsForCurrent >= 1) loss += 10;
+  if (attemptsForCurrent >= 2) loss += 10;
+  if (attemptsForCurrent >= 3) loss += 20;
+  if (attemptsForCurrent >= 4) loss += 20;
+  if (attemptsForCurrent >= 5) loss += 30 + (attemptsForCurrent - 5) * 30;
+  return Math.max(10, POINTS_PAR_ENIGME - loss);
+}
+
+function checkAnswer(){
+  const raw = answerInput.value;
+  if (!raw.trim()){
+    feedback.innerHTML = '<span class="error">Veuillez entrer une réponse.</span>';
+    return;
+  }
+
+  const puzzle = puzzles[index];
+
+  if (puzzle.validate(raw)){
+    const gained = getPointsForCurrentPuzzle();
+    score += gained;
+    scoresPerPuzzle.push(gained);
+    playSound(successSound);
+    feedback.innerHTML = '<span class="success">Énigme résolue. +' + gained + ' points.</span>';
+    currentInfo.textContent = "";
+    index++;
+
+    if (index >= puzzles.length){
+      setTimeout(finishGame, 750);
+      return;
+    }
+
+    setTimeout(() => {
+      showPuzzle();
+      answerInput.focus();
+    }, 900);
+  } else {
+    attemptsForCurrent++;
+    playSound(errorSound);
+    feedback.innerHTML = '<span class="error">Mauvaise réponse.</span>';
+    currentInfo.textContent = 'Points encore possibles sur cette énigme : ' + getPointsForCurrentPuzzle() + ' / 100';
+
+    if (attemptsForCurrent >= ESSAIS_AVANT_INDICE && !hintShownForCurrent){
+      hintShownForCurrent = true;
+      hintBox.innerHTML = '💡 <b>Indice :</b> ' + puzzle.hint;
+      hintBox.classList.remove("hidden");
+      currentInfo.textContent = 'Points encore possibles sur cette énigme : ' + getPointsForCurrentPuzzle() + ' / 100';
+    }
+
+    answerInput.focus();
+    answerInput.select();
+  }
+}
+
+function updateTimer(){
+  timeLeft--;
+  const m = Math.floor(timeLeft / 60);
+  const s = timeLeft % 60;
+  timerBoxEl.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+
+  if (timeLeft <= 10 * 60){
+    timerBoxEl.classList.add("urgent");
+  }
+
+  if (timeLeft <= 5 * 60 && !alarmPlayed){
+    alarmPlayed = true;
+    playSound(alarmSound);
+  }
+
+  if (timeLeft <= 0){
+    clearInterval(timer);
+    timer = null;
+    document.getElementById("puzzle").classList.add("hidden");
+    document.getElementById("lost").classList.remove("hidden");
+    document.getElementById("lostScore").textContent = score;
+    document.getElementById("lostRank").textContent = getRank(score);
+    populateScoreTable("lostScoreTable");
+  }
+}
+
+function getRank(value){
+  if (value === 1000) return "M. ENIGMA en personne";
+  if (value >= 900) return "Maître des énigmes";
+  if (value >= 800) return "Expert en énigmes";
+  if (value >= 700) return "Professionnel des énigmes";
+  if (value >= 600) return "Détective";
+  if (value >= 500) return "Apprenti détective";
+  if (value >= 400) return "Énigmes de la cour de récré";
+  if (value >= 300) return "La maternelle des énigmes";
+  if (value >= 200) return "Alors on veut sa sucette ?";
+  if (value >= 100) return "Ouin-ouin c'est trop dur ?";
+  return "Q.I. de poisson mort";
+}
+
+function populateScoreTable(tableId){
+  const tbody = document.querySelector("#" + tableId + " tbody");
+  tbody.innerHTML = "";
+  scoresPerPuzzle.forEach((pts, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td>Énigme ' + (i + 1) + '</td>' +
+      '<td>' + pts + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function finishGame(){
+  clearInterval(timer);
+  timer = null;
+  document.getElementById("puzzle").classList.add("hidden");
+  document.getElementById("end").classList.remove("hidden");
+  document.getElementById("remaining").textContent = timerBoxEl.textContent;
+  document.getElementById("finalScore").textContent = score;
+  document.getElementById("rank").textContent = getRank(score);
+  populateScoreTable("scoreTable");
+}
+
+answerInput.addEventListener("keydown", function(e){
+  if (e.key === "Enter") checkAnswer();
+});
+</script>
+</body>
+</html>
